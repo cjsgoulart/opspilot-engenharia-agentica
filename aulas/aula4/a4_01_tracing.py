@@ -20,22 +20,21 @@ from opspilot.config import tem_langfuse
 from opspilot.grafo import construir_grafo
 from opspilot.observabilidade import finalizar, invocar_com_trace
 
-
 def main() -> None:
     pergunta = " ".join(sys.argv[1:]) or "O checkout está lento e dando erro 503 desde as 18h."
     if not tem_langfuse():
         print("⚠️  Langfuse não configurado: vou rodar SEM trace. Veja o passo 4.1 do guia.\n")
 
     grafo = construir_grafo(aprovacao_humana=False)  # sem interrupt: execução de ponta a ponta
-    saida = invocar_com_trace(
-        grafo,
-        pergunta,
-        nome="opspilot-fsm",
-        session_id="aula4-demo",
-        user_id="aluno",
-        tags=["aula4", "demo"],
-    )
-    finalizar()  # envia o buffer antes do script terminar
+    try:
+        saida = invocar_com_trace(
+            grafo,
+            pergunta,
+            nome="opspilot-fsm",
+            tags=["aula4", "demo"],
+        )
+    finally:
+        finalizar()  # envia o buffer antes do script terminar
 
     print(saida["resposta"])
     if saida["trace_url"]:

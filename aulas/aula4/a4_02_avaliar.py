@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import uuid
 from statistics import mean
 
 from langchain_core.messages import ToolMessage
@@ -38,35 +37,36 @@ def main() -> int:
     args = parser.parse_args()
 
     grafo = construir_grafo(aprovacao_humana=False)
-    sessao = f"eval-{uuid.uuid4().hex[:6]}"
     resultados = []
 
-    for caso in carregar_casos():
-        print(f"▶️  {caso.id}: {caso.pergunta[:70]}")
-        saida = invocar_com_trace(
-            grafo, caso.pergunta, nome=f"eval-{caso.id}", session_id=sessao, user_id="ci", tags=["eval"]
-        )
-        regras = avaliar_regras(caso, saida["resposta"], saida["estado"])
-        nota_regras = mean(regras.values())
-        resultado = {"id": caso.id, "regras": regras, "nota_regras": nota_regras, "trace_url": saida["trace_url"]}
-
-        nota_final = nota_regras
-        if not args.sem_juiz:
-            evidencias = "\n".join(
-                texto_de(m) for m in saida["estado"]["messages"] if isinstance(m, ToolMessage)
+    try:
+        for caso in carregar_casos():
+            print(f"▶️  {caso.id}: {caso.pergunta[:70]}")
+            saida = invocar_com_trace(
+                grafo, caso.pergunta, nome=f"eval-{caso.id}", user_id="ci", tags=["eval"]
             )
-            juiz = julgar_fundamentacao(caso.pergunta, saida["resposta"], evidencias)
-            resultado.update(nota_juiz=juiz.nota, justificativa_juiz=juiz.justificativa)
-            nota_final = (1 - PESO_JUIZ) * nota_regras + PESO_JUIZ * (juiz.nota - 1) / 4
-            registrar_nota(saida["trace_id"], "fundamentacao", juiz.nota, juiz.justificativa)
+            regras = avaliar_regras(caso, saida["resposta"], saida["estado"])
+            nota_regras = mean(regras.values())
+            resultado = {"id": caso.id, "regras": regras, "nota_regras": nota_regras, "trace_url": saida["trace_url"]}
 
-        for nome, valor in regras.items():
-            registrar_nota(saida["trace_id"], nome, valor)
-        resultado["nota_final"] = nota_final
-        resultados.append(resultado)
-        print(f"   regras={nota_regras:.2f} final={nota_final:.2f} {regras}")
+            nota_final = nota_regras
+            if not args.sem_juiz:
+                evidencias = "\n".join(
+                    texto_de(m) for m in saida["estado"]["messages"] if isinstance(m, ToolMessage)
+                )
+                juiz = julgar_fundamentacao(caso.pergunta, saida["resposta"], evidencias)
+                resultado.update(nota_juiz=juiz.nota, justificativa_juiz=juiz.justificativa)
+                nota_final = (1 - PESO_JUIZ) * nota_regras + PESO_JUIZ * (juiz.nota - 1) / 4
+                registrar_nota(saida["trace_id"], "fundamentacao", juiz.nota, juiz.justificativa)
 
-    finalizar()
+            for nome, valor in regras.items():
+                registrar_nota(saida["trace_id"], nome, valor)
+            resultado["nota_final"] = nota_final
+            resultados.append(resultado)
+            print(f"   regras={nota_regras:.2f} final={nota_final:.2f} {regras}")
+    finally:
+        finalizar()
+
     geral, md = salvar_relatorio(resultados, args.limite)
     print(f"\n📊 Nota geral: {geral:.2f} (limite {args.limite:.2f}) — relatório em {md}")
     return 0 if geral >= args.limite else 1

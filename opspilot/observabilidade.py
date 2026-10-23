@@ -17,6 +17,9 @@ O Langfuse (open source, SDK v4 baseado em OpenTelemetry) faz isso com duas peç
 
 Tudo aqui é **opcional**: sem as chaves ``LANGFUSE_*`` o código roda normal,
 só que sem trace. Agente nunca deve cair porque a observabilidade caiu.
+
+O callback captura as chamadas ao modelo e às ferramentas; não passe dados
+pessoais ou segredos nos prompts quando o tracing estiver habilitado.
 """
 
 from __future__ import annotations
@@ -42,8 +45,8 @@ def invocar_com_trace(
     pergunta: str,
     *,
     nome: str = "opspilot",
-    session_id: str = "sessao-local",
-    user_id: str = "aluno",
+    session_id: str | None = None,
+    user_id: str | None = None,
     tags: list[str] | None = None,
 ) -> dict[str, Any]:
     """Executa o agente/grafo dentro de um trace do Langfuse.
@@ -52,8 +55,8 @@ def invocar_com_trace(
         agente: Qualquer grafo compilado (ReAct, FSM ou Deep Agent).
         pergunta: Mensagem do usuário.
         nome: Nome do trace no painel.
-        session_id: Agrupa traces da mesma conversa/sessão.
-        user_id: Quem disparou (pessoa do plantão, job de CI...).
+        session_id: Identificador estável para agrupar turnos da mesma conversa.
+        user_id: Identificador não sensível de quem disparou o agente.
         tags: Etiquetas livres para filtro (ex.: ``["aula4", "eval"]``).
 
     Returns:
@@ -70,19 +73,17 @@ def invocar_com_trace(
     from langfuse import propagate_attributes
     from langfuse.langchain import CallbackHandler
 
-    # ┌─ LACUNA [A4-L1] Plugue o Langfuse no LangChain/LangGraph
-    # │  Dica: Crie um CallbackHandler() e coloque-o na lista config["callbacks"]. Tudo que rodar com esse config vira um trace automaticamente.
-    # │  Copilot Chat: "Crie handler = CallbackHandler() e adicione em config["callbacks"] como uma lista"
-    # └─ Troque cada ___ abaixo. Gabarito: `make gabarito-aula AULA=4`
-    handler = ___()
-    config["callbacks"] = [___]
+    # [A4-L1] ✔ Plugue o Langfuse no LangChain/LangGraph
+    handler = CallbackHandler()
+    config["callbacks"] = [handler]
 
-    with langfuse.start_as_current_observation(as_type="span", name=nome, input={"pergunta": pergunta}) as span:
-        # ┌─ LACUNA [A4-L2] Carimbe o trace com contexto de negócio
-        # │  Dica: propagate_attributes(...) é um context manager. Passe session_id, user_id, tags e version=VERSAO_PROMPT — assim você filtra no painel por versão de prompt.
-        # │  Copilot Chat: "Abra um with propagate_attributes passando session_id, user_id, tags (ou lista vazia) e version=VERSAO_PROMPT"
-        # └─ Troque cada ___ abaixo. Gabarito: `make gabarito-aula AULA=4`
-        with propagate_attributes(session_id=___, user_id=___, tags=tags or [], version=___):
+    with langfuse.start_as_current_observation(
+        as_type="agent", name=nome, input={"pergunta": pergunta}
+    ) as span:
+        # [A4-L2] ✔ Carimbe o trace com contexto de negócio
+        with propagate_attributes(
+            session_id=session_id, user_id=user_id, tags=tags or [], version=VERSAO_PROMPT
+        ):
             estado = agente.invoke({"messages": [{"role": "user", "content": pergunta}]}, config=config)
         resposta = texto_de(estado["messages"][-1])
         span.update(output={"resposta": resposta})
@@ -101,11 +102,8 @@ def registrar_nota(trace_id: str | None, nome: str, valor: float, comentario: st
     langfuse = cliente_langfuse()
     if langfuse is None or trace_id is None:
         return
-    # ┌─ LACUNA [A4-L5] Ligue a avaliação ao trace
-    # │  Dica: langfuse.create_score(...) recebe trace_id, name, value (float) e comment.
-    # │  Copilot Chat: "Chame langfuse.create_score com trace_id, name=nome, value=float(valor) e comment=comentario"
-    # └─ Troque cada ___ abaixo. Gabarito: `make gabarito-aula AULA=4`
-    langfuse.___(trace_id=trace_id, name=___, value=float(valor), comment=comentario)
+    # [A4-L5] ✔ Ligue a avaliação ao trace
+    langfuse.create_score(trace_id=trace_id, name=nome, value=float(valor), comment=comentario)
 
 
 def finalizar() -> None:
@@ -115,4 +113,4 @@ def finalizar() -> None:
         langfuse.flush()
 
 
-__all__ = ["cliente_langfuse", "invocar_com_trace", "registrar_nota", "finalizar"]
+__all__ = ["cliente_langfuse", "finalizar", "invocar_com_trace", "registrar_nota"]

@@ -25,3 +25,9 @@
 
 ## Lições aprendidas (o agente acrescenta abaixo, 1 linha por lição)
 - Fila de notificações crescendo costuma ser efeito colateral de retries da API produtora.
+- Mudança recente na configuração do pool de banco é uma suspeita forte quando checkout passa a gerar PoolTimeout e 503 com CPU baixa na API.
+- Antes de escalar checkout por 503 com CPU baixa, verifique o pool de conexões do banco e compare com o baseline configurado.
+- Quando o checkout apresentar 503 com CPU baixa e `PoolTimeout`, valide primeiro o `DB_POOL_SIZE`/`conexoes_max_pool` do `pagamentos-db` antes de investigar deploy da API.
+- Se o `checkout-api` estiver com CPU baixa e `PoolTimeout`, compare o pool do `pagamentos-db` com o baseline antes de escalar a API ou culpar o deploy.
+- Redução recente do pool de conexões do banco pode ser a causa raiz de checkout 503 mesmo com CPU baixa na API; compare sempre com o baseline antes de concluir problema na aplicação.
+- Quando houver `PoolTimeout` no checkout com CPU baixa, valide primeiro a configuração do pool da dependência (ex.: `DB_POOL_SIZE`/`default_pool_size`) antes de culpar o deploy da API.
